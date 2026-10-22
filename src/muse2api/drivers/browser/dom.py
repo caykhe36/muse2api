@@ -43,10 +43,6 @@ PAGE_STATE = f"""(() => {{
 
 # Snapshot of the conversation used to detect new output after sending.
 CHAT_STATE = f"""(() => {{
-  const unreadRow = [...document.querySelectorAll('*')].find(e => e.className && typeof e.className === 'string' && e.className.includes('group/nav-row') && (e.innerText || '').includes('Unread'));
-  if (unreadRow && !document.querySelector({q(ATTACHMENT)})) {{
-    try {{ unreadRow.click(); }} catch(_) {{}}
-  }}
   const scrollers = [...document.querySelectorAll('*')].filter(e => {{
     const s = getComputedStyle(e);
     return (s.overflowY === 'auto' || s.overflowY === 'scroll') && e.scrollHeight > e.clientHeight + 50;
