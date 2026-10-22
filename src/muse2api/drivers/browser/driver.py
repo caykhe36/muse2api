@@ -686,10 +686,9 @@ class BrowserDriver(MuseDriver):
             att = await self._wait_media(tab, base, kind, timeout, on_progress, cancel)
             return await self._download(tab, att, kind)
         except CDPError as exc:
-            await self._close_tab(tab)
             raise UpstreamError(f"browser error: {exc}") from exc
         finally:
-            await self._checkin(tab)
+            await self._close_tab(tab)
 
     async def generate_image(self, account: Account, req: ImageRequest) -> list[MediaResult]:
         prompt = self._media_prompt(req.prompt, "image", req.size)
