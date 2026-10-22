@@ -231,18 +231,12 @@ class BrowserDriver(MuseDriver):
             tabs = self._tabs.get(tab.account_id, [])
             if tab in tabs:
                 tabs.remove(tab)
-            last = not tabs and not self._opening.get(tab.account_id)
-            context_id = self._contexts.pop(tab.account_id, None) if last else None
             self._tab_cond.notify_all()
-        await tab.session.close()
+        with contextlib.suppress(Exception):
+            await tab.session.close()
         if self._browser and not self._browser.closed:
             with contextlib.suppress(Exception):
                 await self._browser.send("Target.closeTarget", {"targetId": tab.target_id})
-            if context_id:
-                with contextlib.suppress(Exception):
-                    await self._browser.send(
-                        "Target.disposeBrowserContext", {"browserContextId": context_id}
-                    )
 
     @staticmethod
     async def _set_cookies(session: CDPSession, account: Account) -> None:
