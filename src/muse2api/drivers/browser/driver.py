@@ -254,13 +254,19 @@ class BrowserDriver(MuseDriver):
             params = {
                 "name": name,
                 "value": value,
-                "domain": ".muse.ai",
                 "path": "/",
                 "secure": True,
                 # Never hand Chromium a past expiry; it would drop the cookie silently.
                 "expires": exp if exp > floor else time.time() + 7 * 86400,
             }
-            await session.send("Network.setCookie", params)
+            if name.startswith("__Host-"):
+                params["url"] = "https://muse.ai"
+            else:
+                params["domain"] = ".muse.ai"
+            try:
+                await session.send("Network.setCookie", params)
+            except Exception as e:
+                log.warning("failed to set cookie %s: %s", name, e)
 
     @staticmethod
     def _forget(tab: _Tab) -> None:
@@ -339,7 +345,7 @@ class BrowserDriver(MuseDriver):
             # A busy page can leave Runtime.evaluate unanswered while it loads; poll again.
             with contextlib.suppress(CDPError, TimeoutError):
                 state = await tab.session.evaluate(dom.PAGE_STATE, timeout=5.0) or {}
-                if state.get("ready"):
+                if state.get("ready") and (state.get("path") == "/thread/new" or state.get("path", "").endswith("/new")):
                     return
         head = (state.get("head") or "").lower()
         if any(h in head for h in dom.LOGIN_HINTS):
@@ -552,13 +558,15 @@ class BrowserDriver(MuseDriver):
             hints.append(f"{duration} seconds long")
         verb = "Generate an image" if kind == "image" else "Generate a video"
         suffix = f" ({', '.join(hints)})" if hints else ""
+        if kind == "image":
+            return f"{verb}{suffix}. Directly generate and display the photograph without any conversational text or practice questions: {prompt}"
         return f"{verb}{suffix}: {prompt}"
 
     # muse.ai posts a completion sentence ("Here's your video…") a few seconds
     # before the media attachment's blob src is ready, so a reply that is "text
     # only" right now may still be finalising. Keep waiting this long for the
     # attachment to appear/load before treating the reply as a refusal.
-    _MEDIA_GRACE = {"video": 90.0, "image": 8.0}
+    _MEDIA_GRACE = {"video": 90.0, "image": 60.0}
     # The timeout is soft while muse.ai is visibly still working (stop button
     # shown or attachment loading): giving up then threw away images that landed
     # a minute later, and the failover started the whole generation over.

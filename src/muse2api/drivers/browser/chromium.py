@@ -38,7 +38,7 @@ class ChromiumProcess:
                  proxy: str = ""):
         self.executable = executable
         self.port = port
-        self.profile_dir = profile_dir
+        self.profile_dir = Path(profile_dir).resolve()
         self.headless = headless
         self.proxy = proxy
         self.proc: asyncio.subprocess.Process | None = None

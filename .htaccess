@@ -1,0 +1,17 @@
+<Files .env>
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Chuyển Authorization header qua FastCGI
+<IfModule mod_authz_core.c>
+    CGIPassAuth On
+</IfModule>
+
+RewriteEngine On
+
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]

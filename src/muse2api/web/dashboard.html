@@ -410,7 +410,10 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
       <section class="page" id="page-accounts" hidden>
         <div class="page-head">
           <div class="grow"><h1>Accounts</h1><div class="sub">Các tài khoản muse.ai trong pool. Account hết quota sẽ tự quay lại khi hết thời gian nghỉ.</div></div>
-          <div class="tools"><button class="btn" id="acc-refresh" type="button"><svg class="i"><use href="#i-refresh"/></svg>Làm mới</button></div>
+          <div class="tools">
+            <button class="btn" id="acc-refresh" type="button"><svg class="i"><use href="#i-refresh"/></svg>Làm mới</button>
+            <button class="btn primary big" id="acc-add" type="button"><svg class="i"><use href="#i-plus"/></svg>Thêm Account</button>
+          </div>
         </div>
         <div class="summary" id="acc-summary"></div>
         <div class="cards" id="accounts"></div>
@@ -774,7 +777,10 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
     const list = [...state.accounts].sort((a, b) => (order[accState(a, t).key] - order[accState(b, t).key])
       || (a.label || a.id).localeCompare(b.label || b.id));
     $("#accounts").innerHTML = list.map(accountCard).join("")
-      || `<div class="panel empty">Chưa có account nào. Thêm account bằng <span class="mono">POST /admin/accounts</span> hoặc script import cookies.</div>`;
+      || `<div class="panel empty" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px 16px;">
+            <div>Chưa có account muse.ai nào trong pool.</div>
+            <button class="btn primary big" id="empty-add-btn" type="button"><svg class="i"><use href="#i-plus"/></svg> Thêm Account ngay</button>
+          </div>`;
   }
   async function loadAccountsPage() { await loadAccounts(); renderAccounts(); }
 
@@ -812,6 +818,57 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; font-family: var(--mono); font-si
       }
       await loadAccountsPage();
     });
+  });
+  async function accountForm() {
+    return modal({
+      title: "Thêm tài khoản muse.ai vào hệ thống",
+      wide: true,
+      body: `<label class="f">Tên gợi nhớ (Label)
+          <input type="text" id="af-label" maxlength="100" value="Muse Account" placeholder="vd. Muse VIP 1" autocomplete="off">
+        </label>
+        <label class="f">Cookies muse.ai
+          <span class="hint">Dán chuỗi Cookie từ trình duyệt hoặc JSON từ extension Cookie-Editor (yêu cầu ít nhất hatch_sess, hatch_gw, hatch_vml, hatch_native_auth_device)</span>
+          <textarea id="af-cookies" rows="6" placeholder="hatch_sess=...; hatch_gw=...; hatch_vml=...; hatch_native_auth_device=..." style="font-family:var(--mono);font-size:12px;"></textarea>
+        </label>`,
+      actions: [
+        {label: "Huỷ", value: null},
+        {
+          label: "Thêm tài khoản",
+          primary: true,
+          cls: "primary",
+          collect: () => {
+            let val = $("#af-cookies").value.trim();
+            let cookies = val;
+            if (val.startsWith("[") || val.startsWith("{")) {
+              try { cookies = JSON.parse(val); } catch(e) {}
+            }
+            return {label: $("#af-label").value.trim() || "Muse Account", cookies};
+          },
+          check: (v) => v.cookies ? "" : "Vui lòng dán cookies vào ô."
+        }
+      ]
+    });
+  }
+
+  async function onAddAccount() {
+    const form = await accountForm();
+    if (!form) return;
+    try {
+      const res = await api("/admin/accounts", {method: "POST", body: form});
+      if (res.missing_cookies && res.missing_cookies.length) {
+        toast(`Đã thêm account, nhưng thiếu một số cookie: ${res.missing_cookies.join(", ")}`, "warn");
+      } else {
+        toast("Thêm account thành công!");
+      }
+      await loadAccountsPage();
+    } catch (e) {
+      toast(`Lỗi: ${e.message}`, "err");
+    }
+  }
+
+  $("#acc-add").addEventListener("click", () => guarded(onAddAccount));
+  $("#accounts").addEventListener("click", (e) => {
+    if (e.target.closest("#empty-add-btn")) guarded(onAddAccount);
   });
   $("#acc-refresh").addEventListener("click", () => guarded(loadAccountsPage));
 

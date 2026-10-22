@@ -43,6 +43,10 @@ PAGE_STATE = f"""(() => {{
 
 # Snapshot of the conversation used to detect new output after sending.
 CHAT_STATE = f"""(() => {{
+  const unreadRow = [...document.querySelectorAll('*')].find(e => e.className && typeof e.className === 'string' && e.className.includes('group/nav-row') && (e.innerText || '').includes('Unread'));
+  if (unreadRow && !document.querySelector({q(ATTACHMENT)})) {{
+    try {{ unreadRow.click(); }} catch(_) {{}}
+  }}
   const scrollers = [...document.querySelectorAll('*')].filter(e => {{
     const s = getComputedStyle(e);
     return (s.overflowY === 'auto' || s.overflowY === 'scroll') && e.scrollHeight > e.clientHeight + 50;
@@ -61,6 +65,19 @@ CHAT_STATE = f"""(() => {{
       h: m ? (m.videoHeight || m.naturalHeight || 0) : 0,
     }};
   }});
+  if (!atts.some(a => a.src)) {{
+    document.querySelectorAll('img[src^="blob:"]').forEach(img => {{
+      if ((img.naturalWidth || 0) >= 512 || (img.clientWidth || 0) >= 300) {{
+        atts.push({{
+          tid: 'fallback-blob-image',
+          kind: 'image',
+          src: img.currentSrc || img.src || '',
+          w: img.naturalWidth || 1792,
+          h: img.naturalHeight || 1344
+        }});
+      }}
+    }});
+  }}
   const tail = document.body ? document.body.innerText.slice(-600) : '';
   return {{ agentCount: bubbles.length, lastText: last,
             generating: !!document.querySelector({q(STOP_BUTTON)}),
