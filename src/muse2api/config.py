@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         description="SSE ': keepalive' comment interval while waiting for the first "
         "stream token; 0 disables. Keeps idle clients/proxies from timing out.",
     )
-    image_timeout: float = 240.0
+    image_timeout: float = 420.0
     video_timeout: float = 600.0
 
     # --- account pool ---

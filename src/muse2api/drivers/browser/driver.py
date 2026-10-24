@@ -359,23 +359,44 @@ class BrowserDriver(MuseDriver):
             await asyncio.sleep(1.0)
 
     async def _send(self, tab: _Tab, prompt: str) -> None:
-        res = await tab.session.evaluate(dom.fill_input(prompt))
-        if not (res or {}).get("ok"):
-            raise UpstreamError(f"cannot fill chat input: {(res or {}).get('err')}")
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            if await tab.session.evaluate(dom.CLICK_SEND) == "clicked":
-                return
-            await asyncio.sleep(0.1)
-        for kind in ("keyDown", "keyUp"):
-            await tab.session.send(
-                "Input.dispatchKeyEvent",
-                {"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13,
-                 **({"text": "\r"} if kind == "keyDown" else {})},
-            )
-        await asyncio.sleep(0.5)
-        if not await tab.session.evaluate(dom.INPUT_EMPTY):
-            raise UpstreamError("send button not found and Enter did not submit")
+        # Give React 1.2s to fully hydrate and attach button click handlers
+        await asyncio.sleep(1.2)
+        
+        for attempt in range(4):
+            res = await tab.session.evaluate(dom.fill_input(prompt))
+            if not (res or {}).get("ok"):
+                await asyncio.sleep(0.8)
+                continue
+                
+            clicked = False
+            deadline = time.monotonic() + 4.0
+            while time.monotonic() < deadline:
+                if await tab.session.evaluate(dom.CLICK_SEND) == "clicked":
+                    clicked = True
+                    break
+                await asyncio.sleep(0.15)
+                
+            if not clicked:
+                for kind in ("keyDown", "keyUp"):
+                    await tab.session.send(
+                        "Input.dispatchKeyEvent",
+                        {"type": kind, "key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13,
+                         **({"text": "\r"} if kind == "keyDown" else {})},
+                    )
+            
+            # Verify that muse.ai actually accepted the prompt
+            v_deadline = time.monotonic() + 5.0
+            while time.monotonic() < v_deadline:
+                await asyncio.sleep(0.4)
+                st = await self._state(tab)
+                path = (await tab.session.evaluate("location.pathname") or "").rstrip("/")
+                if st.get("generating") or st.get("agentCount", 0) > 0 or (path and path != "/thread/new"):
+                    log.info("[_send] Prompt successfully accepted! (attempt=%d, path=%s, gen=%s)", attempt + 1, path, st.get("generating"))
+                    return
+            log.warning("[_send] Attempt %d: prompt was not accepted by muse.ai; re-trying send...", attempt + 1)
+            await asyncio.sleep(1.0)
+            
+        raise UpstreamError("Prompt submission failed: muse.ai did not accept prompt after 4 attempts")
 
     async def _state(self, tab: _Tab) -> dict:
         state = await tab.session.evaluate(dom.CHAT_STATE) or {}
@@ -401,6 +422,7 @@ class BrowserDriver(MuseDriver):
     async def _prepare(self, tab: _Tab, prompt: str, images: list[InputImage]) -> dict:
         await self._new_thread(tab)
         base = await self._state(tab)
+        log.info("[_prepare] base_atts=%d, base_count=%d", len(base.get("attachments", [])), base.get("agentCount", 0))
         await self._attach(tab, images)
         await self._send(tab, prompt)
         return base
@@ -586,9 +608,17 @@ class BrowserDriver(MuseDriver):
                 await self._deny_approvals(tab)
                 denied, text_done_at = True, None
                 continue
-            new_atts = st.get("attachments", [])[base_atts:]
+            path = (await tab.session.evaluate("location.pathname") or "").rstrip("/")
+            if path and path != "/thread/new":
+                new_atts = st.get("attachments", [])
+            else:
+                new_atts = st.get("attachments", [])[base_atts:]
             fresh = [a for a in new_atts if a.get("src") and a.get("kind") == kind]
             if fresh:
+                if elapsed < 12.0:
+                    log.warning("[_wait_media] Attachment appeared suspiciously early (%.1fs); ignoring stale DOM: %r", elapsed, fresh[-1])
+                    continue
+                log.info("[_wait_media] fresh genuine attachment found after %.2fs: %r", elapsed, fresh[-1])
                 return fresh[-1]
             busy = bool(st.get("generating")) or any(kind in (a.get("tid") or "") for a in new_atts)
             elapsed = time.monotonic() - started
