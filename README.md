@@ -1,105 +1,110 @@
 <h1 align="center">muse2api</h1>
 
 <p align="center">
-  <b>English</b> | <a href="README.zh-CN.md">中文</a>
+  <b>Tiếng Việt</b> | <a href="README.en.md">English</a> | <a href="README.zh-CN.md">中文</a>
 </p>
 
 <p align="center">
-  An async gateway that exposes the <a href="https://muse.ai">muse.ai</a> web app as an <b>OpenAI-compatible API</b>
+  Cổng API bất đồng bộ (Async Gateway) biến ứng dụng web <a href="https://muse.ai">muse.ai</a> thành <b>chuẩn API OpenAI</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python" alt="Python" />
   <img src="https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi" alt="FastAPI" />
   <img src="https://img.shields.io/badge/API-OpenAI%20Compatible-green" alt="OpenAI Compatible" />
-  <img src="https://img.shields.io/badge/status-v0.1%20framework-orange" alt="Status" />
+  <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status" />
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="License" />
 </p>
 
 ---
 
-## Contents
+## Mục lục
 
-- [Overview](#overview)
-- [Status](#status)
-- [Architecture](#architecture)
-- [Project layout](#project-layout)
-- [Quick start](#quick-start)
-- [API examples](#api-examples)
-- [Configuration](#configuration)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [Disclaimer](#disclaimer)
-- [Star History](#star-history)
+- [Tổng quan](#tổng-quan)
+- [Tính năng nổi bật](#tính-năng-nổi-bật)
+- [Kiến trúc hệ thống](#kiến-trúc-hệ-thống)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Hướng dẫn cài đặt & Khởi chạy](#hướng-dẫn-cài-đặt--khởi-chạy)
+  - [Chạy nhanh trên Windows (Laragon)](#chạy-nhanh-trên-windows-laragon)
+  - [Chạy thủ công với môi trường ảo Python](#chạy-thủ-công-với-môi-trường-ảo-python)
+  - [Chạy qua Docker](#chạy-qua-docker)
+- [Cấu hình tài khoản muse.ai](#cấu-hình-tài-khoản-museai)
+- [Ví dụ gọi API](#ví-dụ-gọi-api)
+  - [Chat hội thoại (Hỗ trợ Streaming SSE)](#chat-hội-thoại-hỗ-trợ-streaming-sse)
+  - [OpenAI Python SDK](#openai-python-sdk)
+  - [Tạo ảnh từ văn bản (Text to Image)](#tạo-ảnh-từ-văn-bản-text-to-image)
+  - [Tạo ảnh tách nền trong suốt (Transparent Background)](#tạo-ảnh-tách-nền-trong-suốt-transparent-background)
+  - [Tạo ảnh từ ảnh tham chiếu (Image to Image / Edits)](#tạo-ảnh-từ-ảnh-tham-chiếu-image-to-image--edits)
+  - [Tạo video bất đồng bộ (Text to Video)](#tạo-video-bất-đồng-bộ-text-to-video)
+- [Danh sách Endpoints](#danh-sách-endpoints)
+- [Web Dashboard & Quản lý API Key](#web-dashboard--quản-lý-api-key)
+- [Cấu hình biến môi trường (.env)](#cấu-hình-biến-môi-trường-env)
+- [Tuyên bố miễn trừ trách nhiệm](#tuyên-bố-miễn-trừ-trách-nhiệm)
+- [Giấy phép](#giấy-phép)
 
-## Overview
+---
 
-muse2api turns muse.ai's chat, text-to-image and text-to-video features into standard OpenAI endpoints (`/v1/chat/completions`, `/v1/images/generations`, ...). Existing OpenAI SDKs and clients such as ChatGPT-Next-Web, LobeChat or Cherry Studio work by just changing their `base_url`.
+## Tổng quan
 
-The project focuses on **clean engineering and easy collaboration**:
+**muse2api** là cổng trung gian chuyển đổi các tính năng chat, vẽ ảnh (text-to-image) và tạo video (text-to-video) của [muse.ai](https://muse.ai) thành các endpoint chuẩn theo đặc tả của OpenAI (`/v1/chat/completions`, `/v1/images/generations`, `/v1/videos`,...). 
 
-- **Pluggable drivers**: how we reach upstream is abstracted behind a `MuseDriver` interface. There are currently a mock driver and a browser (CDP) driver, plus a reserved slot for a direct-protocol (HTTP) driver. They are fully independent of each other.
-- **Strict layering**: the protocol layer, service layer, account pool and drivers each have a single responsibility and can be developed and tested on their own.
-- **Fully async**: built on FastAPI + asyncio; the CDP client uses `websockets`, so no request ever blocks a thread.
-- **Account pool**: multiple scheduling strategies, per-account concurrency limits, cooldown after failures, automatic removal of expired sessions, and automatic failover to another account.
-- **Offline development**: the mock driver needs no account and makes no network calls, so front-end and protocol work can move forward independently.
+Nhờ đó, bạn có thể tích hợp trực tiếp muse.ai vào mọi ứng dụng, công cụ hoặc SDK OpenAI hiện có như:
+- Thư viện lập trình: `openai-python`, `openai-node`, LangChain, LlamaIndex,...
+- Ứng dụng chat giao diện người dùng: ChatGPT-Next-Web, LobeChat, Cherry Studio, BetterChatGPT,...
+- Chỉ cần cấu hình:
+  - `Base URL`: `http://127.0.0.1:18610/v1` (hoặc domain nội bộ `http://muse2api.test/v1`)
+  - `API Key`: Khóa API do hệ thống cấp.
 
-## Status
+---
 
-> **Current**: the mock-driver test suite passes locally (81 tests, no network access) and CI runs on every push to main; the browser driver and the direct-protocol driver still need live testing against a real muse.ai account.
+## Tính năng nổi bật
 
-| Module | Status | Notes |
-|---|---|---|
-| OpenAI protocol layer (chat streaming/non-streaming, images, videos, models) | ✅ Implemented | Multi-turn chat, system prompts, image input, model aliases |
-| Account pool (scheduling / cooldown / invalidation / failover) | ✅ Implemented | `lru`, `round_robin` and `affinity` strategies |
-| Background tasks (video) | ✅ Implemented | Create a task, then poll for the result; unfinished tasks are marked interrupted after a restart |
-| Admin API (account CRUD, renewal, reset, status) | ✅ Implemented | Accepts cookie dicts, raw `Cookie` header strings and EditThisCookie JSON, plus bulk import via `/admin/accounts/import`; per-account quota snapshot at `/admin/accounts/{id}/quota` |
-| Mock driver | ✅ Implemented | Offline fake data |
-| Browser driver (Chromium + CDP) | 🧪 Needs live testing | Full chat, image and video flows are written |
-| Session renewal / keepalive | 🧪 Needs live testing | Plain HTTP, disabled by default |
-| Direct HTTP protocol driver | 🚧 Reserved | Returns 501 |
-| `/v1/images/edits` (reference images) | ✅ Implemented | Images are references for a new image; `mask` is rejected |
-| `/v1/responses` | 🚧 Reserved | Returns 501 |
-| Streaming heartbeats (SSE keepalive) | ✅ Implemented | Opt-in with `MUSE2API_STREAM_HEARTBEAT_INTERVAL`; sends `: keepalive` comments while waiting for the first token |
-| Automatic media cleanup | ✅ Implemented | `MUSE2API_MEDIA_RETENTION_DAYS` (default 14, `0` disables); hourly background pruning |
-| SSRF guard for server-side image fetches | ✅ Implemented | Private and loopback URLs are rejected |
-| Web dashboard, request log, multiple API keys | ✅ Implemented | Dashboard at `/dashboard`; key CRUD at `/admin/keys`; per-request log and aggregates |
-| Quota lookup | 🧪 Needs real driver | Mock driver returns a fake snapshot; browser/http drivers are not wired up yet |
-| Cookie import browser extension | 🚧 Reserved | |
-| Storage backends (SQLite / Redis) | 🚧 Reserved | Accounts still use a JSON store; the request log is SQLite |
-| Prometheus metrics | 🚧 Reserved | Basic aggregates exist at `/admin/stats` |
+- **Chuẩn OpenAI 100%**: Hỗ trợ đầy đủ chat streaming (SSE), non-streaming, đa lượt hội thoại (multi-turn), system prompt, bí danh mô hình (model aliases như `gpt-4o`, `dall-e-3`).
+- **Driver linh hoạt (Pluggable Drivers)**:
+  - `browser`: Điều khiển trình duyệt Chromium tự động qua Chrome DevTools Protocol (CDP) không cần cài đặt WebDriver cồng kềnh.
+  - `mock`: Dữ liệu giả lập phục vụ viết unit test và phát triển giao diện ngoại tuyến mà không cần tài khoản thật.
+- **Account Pool (Bể tài khoản) thông minh**:
+  - Hỗ trợ chạy đồng thời nhiều tài khoản muse.ai.
+  - Chiến lược điều phối: `lru` (ít dùng nhất), `round_robin` (xoay vòng), `affinity` (gắn liền phiên).
+  - Tự động phát hiện phiên hết hạn (session expired), cooldown tài khoản gặp lỗi và tự động chuyển đổi dự phòng (failover) sang tài khoản khác mà không làm gián đoạn người dùng.
+- **Tách nền ảnh tự động (Matting / Transparent Background)**: Hỗ trợ tạo ảnh với nền trong suốt (RGBA PNG) nhờ mô hình BiRefNet tích hợp sẵn khi truyền tham số `"background": "transparent"`.
+- **Tác vụ nền bất đồng bộ (Async Tasks)**: Tạo video và sinh ảnh phức tạp chạy nền, tránh lỗi timeout (HTTP 524 Cloudflare / Proxy).
+- **Web Dashboard trực quan**: Giao diện quản lý tài khoản, tạo/thu hồi API Key, xem biểu đồ request, độ trễ và nhật ký lỗi theo thời gian thực tại `/dashboard`.
+- **Hoàn toàn bất đồng bộ (Asyncio + FastAPI)**: Tối ưu hiệu năng cao, không nghẽn thread.
 
-## Architecture
+---
+
+## Kiến trúc hệ thống
 
 ```mermaid
 flowchart TB
-    clients["OpenAI SDK / chat clients<br/>HTTP · Bearer key"]
+    clients["OpenAI SDK / Web Chat Clients<br/>HTTP · Bearer Key"]
 
-    subgraph api["api/ — protocol"]
-        api_routes["routes · validation · auth · SSE"]
+    subgraph api["Tầng giao thức (api/)"]
+        api_routes["Routes · Validation · Authentication · SSE"]
     end
 
-    subgraph services["services/"]
-        svc["Gateway (failover) · TaskManager"]
+    subgraph services["Tầng nghiệp vụ (services/)"]
+        svc["Gateway (Failover & Retry) · TaskManager"]
     end
 
-    subgraph accounts["accounts/"]
-        acc["Account pool<br/>strategies · cooldown · renewal"]
+    subgraph accounts["Quản lý tài khoản (accounts/)"]
+        acc["Account Pool<br/>LRU / Round-Robin · Cooldown · Session Renewal"]
     end
 
-    subgraph core["core/"]
-        core_inner["Model aliases<br/>prompt conversion · media storage"]
+    subgraph core["Lõi xử lý (core/)"]
+        core_inner["Model Aliases · Prompt Formatter · Media Storage"]
     end
 
-    subgraph drivers["drivers/ — MuseDriver interface (only layer that talks to upstream)"]
+    subgraph drivers["Tầng Driver (drivers/ — MuseDriver Interface)"]
         direction LR
-        d_mock["mock<br/>offline fake data"]
+        d_mock["mock<br/>Dữ liệu test offline"]
         d_browser["browser<br/>Chromium + CDP"]
-        d_http["http<br/>direct protocol (reserved)"]
+        d_http["http<br/>Direct Protocol (Dự phòng)"]
     end
 
-    subgraph upstream["upstream/"]
-        u["muse.ai URLs · cookie names · session API"]
+    subgraph upstream["Kết nối muse.ai (upstream/)"]
+        u["Cookie Auth · Session Keepalive · Web App"]
     end
 
     musedotai["muse.ai"]
@@ -110,234 +115,267 @@ flowchart TB
     drivers --> upstream --> musedotai
 ```
 
-**How a chat request is handled**: the route resolves the model alias and merges the multi-turn `messages` into a single prompt, then hands it to the Gateway. The Gateway leases an account from the pool and asks the driver for a text stream. On failure, the account's state is updated according to the error type: accounts with an expired session are taken offline, accounts out of quota cool down, and other errors cause a short cooldown. As long as nothing has been sent to the client yet, the request is retried on another account.
+---
 
-For streaming requests, the first chunk is fetched before returning 200. Errors such as "no account available" or "upstream authentication failed" therefore come back with a proper HTTP status code instead of a stream that breaks halfway.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
-
-## Project layout
+## Cấu trúc thư mục
 
 ```
 muse2api/
 ├── src/muse2api/
-│   ├── app.py                 # FastAPI app factory and lifespan
-│   ├── config.py              # Settings (environment variables / .env)
-│   ├── errors.py              # Error hierarchy → HTTP status + OpenAI error body
+│   ├── app.py                 # Khởi tạo FastAPI App & vòng đời ứng dụng
+│   ├── config.py              # Đọc cấu hình từ biến môi trường (.env)
+│   ├── errors.py              # Xử lý và chuyển đổi mã lỗi sang chuẩn OpenAI
 │   ├── api/
-│   │   ├── deps.py            # Auth and dependency injection
-│   │   ├── schemas.py         # OpenAI request models
-│   │   └── routes/            # chat / images / videos / media / models / admin / responses
+│   │   ├── deps.py            # Middleware xác thực & Dependency Injection
+│   │   ├── schemas.py         # Pydantic schemas cho OpenAI Requests/Responses
+│   │   └── routes/            # Các endpoint: chat, images, videos, admin, dashboard...
 │   ├── services/
-│   │   ├── gateway.py         # Runs driver calls on pooled accounts, retries on another account
-│   │   ├── tasks.py           # Background long-running tasks
-│   │   └── container.py       # Service wiring
-│   ├── accounts/              # Account model, JSON store, pool, session keepalive
-│   ├── core/                  # Model registry and aliases, prompt conversion, media storage
+│   │   ├── gateway.py         # Điều phối driver, chuyển tài khoản dự phòng khi lỗi
+│   │   ├── tasks.py           # Quản lý tác vụ tạo video/ảnh nền dài hạn
+│   │   └── container.py       # Khởi tạo và liên kết các service
+│   ├── accounts/              # Mô hình tài khoản, JSON store, Account Pool
+│   ├── core/                  # Quản lý model aliases, xử lý prompt, lưu trữ media
 │   ├── drivers/
-│   │   ├── base.py            # MuseDriver interface and data types
-│   │   ├── mock.py
-│   │   ├── browser/           # cdp.py / chromium.py / dom.py / driver.py
-│   │   └── http/              # Reserved
-│   └── upstream/muse.py       # Upstream constants and session renewal
-├── tests/                     # Mock-driver tests, no network access
-├── docs/ARCHITECTURE.md
-├── TODO.md                    # Task board for contributors
-├── Dockerfile · docker-compose.yml · .env.example
-└── CONTRIBUTING.md
+│   │   ├── base.py            # Interface trừu tượng MuseDriver
+│   │   ├── mock.py            # Driver dữ liệu mẫu offline
+│   │   └── browser/           # Driver Chromium CDP điều khiển trang muse.ai
+│   └── upstream/muse.py       # Các hằng số URL và hàm tương tác muse.ai
+├── data/                      # Lưu trữ cục bộ: accounts.json, keys.json, media/
+├── tests/                     # Bộ kiểm thử tự động (80+ unit tests)
+├── run.bat                    # Script khởi chạy nhanh 1-click trên Windows
+├── index.php                  # Proxy trung gian cho Laragon (hỗ trợ *.test)
+├── Dockerfile                 # Đóng gói container Docker
+├── docker-compose.yml         # Triển khai Docker Compose
+└── .env.example               # Mẫu file cấu hình
 ```
 
-## Quick start
+---
 
-### Run locally
+## Hướng dẫn cài đặt & Khởi chạy
+
+### Chạy nhanh trên Windows (Laragon)
+
+Nếu bạn sử dụng Laragon trên Windows:
+1. Đặt thư mục dự án tại `C:\laragon\www\muse2api`.
+2. Đảm bảo máy đã cài đặt Python 3.10+ và Google Chrome.
+3. Cài đặt các thư viện phụ thuộc:
+   ```cmd
+   cd C:\laragon\www\muse2api
+   pip install -e .
+   ```
+4. Click đúp vào file **`run.bat`** để khởi chạy server backend.
+5. Truy cập giao diện quản trị tại:
+   - **Trực tiếp:** [http://127.0.0.1:18610/dashboard](http://127.0.0.1:18610/dashboard)
+   - **Qua Laragon Proxy:** [http://muse2api.test/dashboard](http://muse2api.test/dashboard)
+
+### Chạy thủ công với môi trường ảo Python
 
 ```bash
-git clone https://github.com/www222fff/muse2api.git
+# 1. Clone repository
+git clone https://github.com/caykhe36/muse2api.git
 cd muse2api
-python3 -m venv .venv && source .venv/bin/activate
+
+# 2. Tạo và kích hoạt môi trường ảo
+python -m venv .venv
+# Trên Linux/macOS:
+source .venv/bin/activate
+# Trên Windows:
+.venv\Scripts\activate
+
+# 3. Cài đặt thư viện
 pip install -e '.[dev]'
-cp .env.example .env      # defaults to MUSE2API_DRIVER=mock, no account needed
-python -m muse2api        # listens on http://127.0.0.1:18610 by default
+
+# 4. Sao chép cấu hình mẫu
+cp .env.example .env
+
+# 5. Khởi chạy
+python -m muse2api
 ```
+Server mặc định sẽ lắng nghe tại `http://127.0.0.1:18610`. Nếu chưa đặt khóa bí mật, API key đầu tiên sẽ được tự động tạo và lưu tại file `data/api_key`.
 
-If `MUSE2API_API_KEY` is not set, a key is generated on first start and saved to `data/api_key`.
-
-### Docker
+### Chạy qua Docker
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-### Use a real account (browser driver)
+---
 
-1. Install Chromium or Chrome and set `MUSE2API_DRIVER=browser` in `.env`.
-2. Export the cookies from a browser that is logged in to muse.ai. At least `hatch_sess`, `hatch_gw`, `hatch_vml` and `hatch_native_auth_device` are required.
-3. Import the account through the Admin API (see the example below).
+## Cấu hình tài khoản muse.ai
 
-## API examples
+Để sử dụng tài khoản thật (`MUSE2API_DRIVER=browser`):
 
-Every `/v1/*` endpoint requires the header `Authorization: Bearer <API_KEY>`. The `/admin/*` endpoints use `MUSE2API_ADMIN_KEY`, which defaults to the API key when unset.
+1. Đảm bảo máy chủ có cài đặt Google Chrome hoặc Chromium.
+2. Đăng nhập vào trang [muse.ai](https://muse.ai) trên trình duyệt của bạn.
+3. Xuất Cookie của trang web (sử dụng tiện ích như *EditThisCookie* hoặc *Cookie-Editor*). Các cookie quan trọng gồm có:
+   - `hatch_sess`
+   - `hatch_gw`
+   - `hatch_vml`
+   - `hatch_native_auth_device`
+4. Mở trang Web Dashboard tại `http://127.0.0.1:18610/dashboard` và dán Cookie vào mục **Add Account** (hoặc gọi qua Admin API).
 
-**Chat (streaming)**
+---
+
+## Ví dụ gọi API
+
+Mọi endpoint `/v1/*` đều yêu cầu header `Authorization: Bearer <API_KEY>`.
+
+### Chat hội thoại (Hỗ trợ Streaming SSE)
 
 ```bash
-curl http://localhost:18610/v1/chat/completions \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hello"}],"stream":true}'
+curl http://127.0.0.1:18610/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [
+      {"role": "user", "content": "Xin chào! Bạn có thể giới thiệu về bản thân không?"}
+    ],
+    "stream": true
+  }'
 ```
 
-**OpenAI Python SDK**
+### OpenAI Python SDK
 
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:18610/v1", api_key="<API_KEY>")
-resp = client.chat.completions.create(
-    model="muse-chat",
-    messages=[{"role": "user", "content": "Write a short poem about autumn"}],
+client = OpenAI(
+    base_url="http://127.0.0.1:18610/v1",
+    api_key="your-api-key"
 )
-print(resp.choices[0].message.content)
+
+response = client.chat.completions.create(
+    model="muse-chat",
+    messages=[
+        {"role": "user", "content": "Viết một đoạn văn ngắn về vẻ đẹp của Hà Nội vào mùa thu."}
+    ],
+    stream=False
+)
+
+print(response.choices[0].message.content)
 ```
 
-**Text to image**
+### Tạo ảnh từ văn bản (Text to Image)
 
 ```bash
-curl http://localhost:18610/v1/images/generations \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"prompt":"A cyberpunk street on a rainy night","size":"16:9","response_format":"url"}'
-```
-
-**Transparent background**
-
-muse.ai only returns flat RGB images, so `"background":"transparent"` cuts the subject out locally (BiRefNet + edge colour estimation) and returns an RGBA PNG. Requires `pip install -e '.[matting]'`; the model (~930MB) is downloaded to `~/.u2net` on first use. Expect ~30s extra per image on CPU.
-
-```bash
-curl http://localhost:18610/v1/images/generations \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"prompt":"A red fox sitting","background":"transparent"}'
-```
-
-**Image from reference images**
-
-`"image"` takes one reference image or a list of up to 4 (data URL, http(s) URL or bare base64). They are attached to the muse.ai message like a chat upload, and the prompt says how to use them, e.g. put a product on a model, or "the same fox, now wearing a red scarf" to keep the subject and scene. `/v1/images/edits` does the same with OpenAI-style multipart uploads, so `client.images.edit()` works; `mask` (inpainting a region) is not supported.
-
-```bash
-curl http://localhost:18610/v1/images/generations \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"prompt":"A model wearing exactly this hoodie, studio photo","image":"data:image/jpeg;base64,..."}'
-
-curl http://localhost:18610/v1/images/edits \
+curl http://127.0.0.1:18610/v1/images/generations \
   -H "Authorization: Bearer $KEY" \
-  -F "image[]=@fox.png" -F "prompt=The same fox, now wearing a red scarf"
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Một góc phố cổ Hà Nội dưới cơn mưa chiều, phong cách điện ảnh chân thực",
+    "size": "16:9",
+    "response_format": "url"
+  }'
 ```
 
-**Image as an async task**
+### Tạo ảnh tách nền trong suốt (Transparent Background)
 
-A sync image call (page load plus generation) can take longer than a reverse proxy allows; Cloudflare cuts it after about 100 s with HTTP 524. Add `"async": true` to get a task back, then poll it. Results are always stored as media URLs.
+Yêu cầu cài đặt thêm gói `pip install -e '.[matting]'`:
 
 ```bash
-curl http://localhost:18610/v1/images/generations \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"prompt":"A red fox sitting","async":true}'          # -> {"id":"task_xxx","object":"image.task",...}
-curl http://localhost:18610/v1/images/generations/task_xxx -H "Authorization: Bearer $KEY"
+curl http://127.0.0.1:18610/v1/images/generations \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Một chú mèo con lông vàng ngồi dễ thương",
+    "background": "transparent"
+  }'
 ```
 
-**Text to video (async task)**
+### Tạo ảnh từ ảnh tham chiếu (Image to Image / Edits)
+
+Hỗ trợ truyền tối đa 4 ảnh tham chiếu (`data URL`, link `http(s)` hoặc `base64`):
 
 ```bash
-# Create a task; returns {"id": "task_xxx", "status": "queued", ...}
-curl http://localhost:18610/v1/videos \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"prompt":"Maple leaves falling in a light breeze","duration":5,"size":"16:9"}'
-
-# Poll the task; on success, result.url points to the video
-curl http://localhost:18610/v1/videos/task_xxx -H "Authorization: Bearer $KEY"
+curl http://127.0.0.1:18610/v1/images/generations \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Người mẫu đang mặc chiếc áo này, bối cảnh studio chuyên nghiệp",
+    "image": "data:image/jpeg;base64,..."
+  }'
 ```
 
-**Import an account**
+### Tạo video bất đồng bộ (Text to Video)
 
+Tạo tác vụ sinh video:
 ```bash
-curl http://localhost:18610/admin/accounts \
-  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
-  -d '{"label":"acc1","cookies":{"hatch_sess":"...","hatch_gw":"...","hatch_vml":"...","hatch_native_auth_device":"..."}}'
+curl http://127.0.0.1:18610/v1/videos \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Lá phong rơi nhẹ nhàng trong làn gió thu",
+    "duration": 5,
+    "size": "16:9"
+  }'
+# Trả về: {"id": "task_123456", "status": "queued", ...}
 ```
 
-### Endpoints
+Kiểm tra tiến độ tác vụ:
+```bash
+curl http://127.0.0.1:18610/v1/videos/task_123456 \
+  -H "Authorization: Bearer $KEY"
+```
 
-| Method | Path | Description |
+---
+
+## Danh sách Endpoints
+
+| Phương thức | Đường dẫn | Mô tả chức năng |
 |---|---|---|
-| GET | `/healthz` · `/readyz` | Liveness · readiness (driver state and available accounts) |
-| GET | `/v1/models` | Model list, including aliases such as `gpt-4o` and `dall-e-3` |
-| POST | `/v1/chat/completions` | Chat, streaming and non-streaming |
-| POST | `/v1/images/generations` · GET `/v1/images/generations/{id}` | Text to image (optional `image` references), returns `url` or `b64_json`; `"async": true` returns a task to poll |
-| POST | `/v1/images/edits` | Multipart `image`/`image[]` files + `prompt`, OpenAI-compatible |
-| POST | `/v1/videos` · GET `/v1/videos/{id}` | Create a video task · query a task |
-| GET | `/v1/media/{name}` | Download generated media |
-| GET/POST/PATCH/DELETE | `/admin/accounts[/{id}]` | Account CRUD |
-| POST | `/admin/accounts/import` | Bulk account import with per-entry error reporting |
-| POST | `/admin/accounts/{id}/renew` · `/reset` | Renew session · reset account state |
-| GET | `/admin/status` · `/admin/tasks` | Service status · task list |
-| GET/POST/PATCH/DELETE | `/admin/keys[/{id}]` | Client API keys (create returns the key once; PATCH renames / revokes) |
-| GET | `/admin/requests` · `/admin/stats?window=1h\|24h\|7d` | Request log (filters: `key_id`, `account_id`, `status=2xx\|4xx\|5xx`, `path`, `since`, `hide_polls`) · aggregates |
-| GET | `/dashboard` | Web dashboard (asks for the admin key in the browser) |
-| POST | `/v1/responses` | Reserved, currently returns 501 |
+| `GET` | `/healthz` · `/readyz` | Kiểm tra tình trạng hoạt động của service & driver |
+| `GET` | `/v1/models` | Danh sách các model hỗ trợ (`gpt-4o`, `dall-e-3`, `muse-chat`,...) |
+| `POST` | `/v1/chat/completions` | Hội thoại thông minh (hỗ trợ cả streaming và non-streaming) |
+| `POST` | `/v1/images/generations` | Tạo ảnh từ văn bản hoặc từ ảnh tham chiếu |
+| `POST` | `/v1/images/edits` | Chỉnh sửa / biến đổi ảnh chuẩn multipart OpenAI |
+| `POST` | `/v1/videos` | Khởi tạo tác vụ tạo video bất đồng bộ |
+| `GET` | `/v1/videos/{id}` | Lấy kết quả hoặc kiểm tra tiến độ video |
+| `GET` | `/v1/media/{filename}` | Tải về các tệp hình ảnh / video đã được tạo |
+| `GET/POST` | `/admin/accounts` | Quản lý thêm / sửa / xóa tài khoản muse.ai |
+| `POST` | `/admin/accounts/import`| Nhập hàng loạt tài khoản bằng JSON Cookie |
+| `POST` | `/admin/accounts/{id}/renew` | Làm mới session tài khoản |
+| `GET/POST/DELETE`| `/admin/keys` | Quản lý và cấp phát API Key cho client |
+| `GET` | `/admin/requests` | Xem nhật ký request chi tiết (IP, độ trễ, tài khoản...) |
+| `GET` | `/dashboard` | Giao diện Dashboard quản trị web trực quan |
 
-### Dashboard, API keys and request log
+---
 
-Open `http://localhost:18610/dashboard` and enter the admin key; it is kept in the browser's local storage and sent as a Bearer token to `/admin/*`. The page shows request volume, error rate and latency, the account pool (enable/disable, renew, reset), a live request log, and API key management.
+## Web Dashboard & Quản lý API Key
 
-Besides the admin key and `MUSE2API_API_KEY` (still accepted, logged as `legacy`), `/v1/*` accepts any non-revoked key created on the dashboard or with `POST /admin/keys {"name": "..."}`. Keys look like `m2a-...` and are shown once; `data/keys.json` stores only their SHA-256 hash and an 8-character prefix. Every `/v1/*` request (except `/v1/media/*` downloads) is recorded in `data/requests.db` (SQLite) with its key, model, account, status, latency and client IP (`CF-Connecting-IP` / `X-Forwarded-For` aware). Task status polls are flagged so the dashboard and stats can leave them out.
+Truy cập `http://127.0.0.1:18610/dashboard` để sử dụng Dashboard:
+- Nhập **Admin Key** để đăng nhập (lưu trong `localStorage` của trình duyệt).
+- **Thống kê:** Xem lưu lượng request, tỷ lệ lỗi, độ trễ trung bình theo các mốc thời gian 1h / 24h / 7 ngày.
+- **Quản lý tài khoản:** Xem danh sách tài khoản, trạng thái quota, bật/tắt hoặc gia hạn session.
+- **Quản lý API Key:** Tạo mới các khóa API định dạng `m2a-...`, phân quyền hoặc thu hồi khi cần thiết. Hệ thống chỉ lưu chuỗi băm SHA-256 an toàn.
+- **Nhật ký:** Theo dõi trực tiếp từng request kèm thông tin client IP, model và account đã xử lý.
 
-## Configuration
+---
 
-All settings come from environment variables (prefix `MUSE2API_`) or a `.env` file. See [.env.example](.env.example) for the full list. The most common ones:
+## Cấu hình biến môi trường (.env)
 
-| Variable | Default | Description |
+| Biến | Mặc định | Mô tả |
 |---|---|---|
-| `MUSE2API_DRIVER` | `mock` | Driver: `mock` / `browser` / `http` |
-| `MUSE2API_HOST` · `MUSE2API_PORT` | `127.0.0.1` · `18610` | Listen address and port |
-| `MUSE2API_API_KEY` | auto-generated | Key for `/v1/*` endpoints |
-| `MUSE2API_ADMIN_KEY` | same as API key | Key for `/admin/*` endpoints |
-| `MUSE2API_REQUEST_LOG_RETENTION_DAYS` | `14` | Days of request history kept in `data/requests.db` |
-| `MUSE2API_MEDIA_RETENTION_DAYS` | `14` | Days generated media files are kept in `data/media`; `0` disables automatic cleanup |
-| `MUSE2API_STREAM_HEARTBEAT_INTERVAL` | `0` | SSE `: keepalive` comment interval (seconds) while waiting for the first stream token; `0` disables |
-| `MUSE2API_PUBLIC_BASE` | empty | Public base URL used in media links; derived from the request when empty |
-| `MUSE2API_POOL_STRATEGY` | `lru` | Account scheduling: `lru` / `round_robin` / `affinity` |
-| `MUSE2API_MAX_FAILOVER` | `2` | Maximum number of retries on another account |
-| `MUSE2API_ACCOUNT_MAX_CONCURRENCY` | `1` | Parallel requests per account (browser driver: one tab each); 4 works well |
-| `MUSE2API_CHROMIUM_PATH` | auto-detected | Path to the browser executable |
-| `MUSE2API_KEEPALIVE_ENABLED` | `false` | Periodically renew sessions in the background |
-| `MUSE2API_MATTING_MODEL` | `birefnet-general` | Model for `background: "transparent"` (`birefnet-general-lite` is faster) |
+| `MUSE2API_DRIVER` | `browser` | Loại driver: `browser` (thật), `mock` (test) |
+| `MUSE2API_HOST` | `127.0.0.1` | Địa chỉ IP lắng nghe |
+| `MUSE2API_PORT` | `18610` | Cổng dịch vụ |
+| `MUSE2API_API_KEY` | *(Tự tạo)* | Khóa API dùng cho các endpoint `/v1/*` |
+| `MUSE2API_ADMIN_KEY`| *(Như API Key)*| Khóa quản trị truy cập `/dashboard` và `/admin/*` |
+| `MUSE2API_POOL_STRATEGY` | `lru` | Chiến lược chọn tài khoản: `lru` / `round_robin` / `affinity` |
+| `MUSE2API_MAX_FAILOVER` | `2` | Số lần thử lại tối đa sang tài khoản khác khi gặp lỗi |
+| `MUSE2API_ACCOUNT_MAX_CONCURRENCY` | `2` | Số lượng request đồng thời trên 1 tài khoản |
+| `MUSE2API_MEDIA_RETENTION_DAYS` | `14` | Số ngày lưu trữ media đã tạo trước khi tự động dọn dẹp |
+| `MUSE2API_REQUEST_LOG_RETENTION_DAYS` | `14` | Số ngày lưu trữ nhật ký truy vấn trong SQLite |
 
-## Roadmap
+---
 
-All reserved modules and outstanding work are tracked in **[TODO.md](TODO.md)**, in four groups:
+## Tuyên bố miễn trừ trách nhiệm
 
-- **Verification and live testing (do first)**: get the tests passing, test the browser driver against real accounts, and verify image/video generation and session renewal.
-- **Drivers**: direct HTTP protocol driver, conversation thread reuse, quota lookup.
-- **Protocol**: `/v1/responses`, mask-based inpainting, emulated tool calling.
-- **Accounts, admin and operations**: cookie import browser extension, storage backends, per-key rate limits, Prometheus metrics.
+Dự án này được phát triển phục vụ mục đích học tập và nghiên cứu kỹ thuật. Người sử dụng có trách nhiệm tuân thủ điều khoản dịch vụ của [muse.ai](https://muse.ai) và các quy định pháp luật hiện hành. Tuyệt đối không chia sẻ hoặc công khai cookie tài khoản cá nhân.
 
-Each task lists its location, approach and definition of done. Places marked `TODO(contributors)` in the code are the reserved extension points.
+---
 
-## Contributing
+## Giấy phép
 
-You are welcome to pick up any task in [TODO.md](TODO.md). Please open an issue describing what you plan to do before you start; see [CONTRIBUTING.md](CONTRIBUTING.md) for conventions.
-
-```bash
-pytest           # all tests use the mock driver
-ruff check .     # lint
-```
-
-## Disclaimer
-
-This project is for learning and technical research only. Please comply with muse.ai's terms of service and local laws. Never commit or publish account cookies.
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=www222fff/muse2api&type=Date)](https://star-history.com/#www222fff/muse2api&Date)
-
-## License
-
-[MIT](LICENSE)
+Mã nguồn được phân phối theo giấy phép [MIT License](LICENSE).
