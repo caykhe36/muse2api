@@ -334,13 +334,30 @@ class BrowserDriver(MuseDriver):
         await tab.session.send("Page.navigate", {"url": muse.NEW_THREAD_URL})
         deadline = time.monotonic() + self.settings.page_ready_timeout
         state: dict = {}
+        clicked_one_tap = False
         while time.monotonic() < deadline:
             await asyncio.sleep(0.25)
             # A busy page can leave Runtime.evaluate unanswered while it loads; poll again.
             with contextlib.suppress(CDPError, TimeoutError):
                 state = await tab.session.evaluate(dom.PAGE_STATE, timeout=5.0) or {}
-                if state.get("ready") and (state.get("path") == "/thread/new" or state.get("path", "").endswith("/new")):
+                if state.get("ready") and (state.get("path") == "/thread/new" or state.get("path", "").endswith("/new") or "/thread/" in state.get("path", "")):
                     return
+                if not clicked_one_tap:
+                    try:
+                        one_tap = await tab.session.evaluate("""(() => {
+                            const btns = Array.from(document.querySelectorAll("*")).filter(el => el.innerText && el.innerText.includes("@gmail.com"));
+                            if (btns.length > 0) {
+                                btns[btns.length - 1].click();
+                                return true;
+                            }
+                            return false;
+                        })()""", timeout=2.0)
+                        if one_tap:
+                            clicked_one_tap = True
+                            log.info("Clicked one-tap account button to restore session")
+                            await asyncio.sleep(2.0)
+                    except Exception:
+                        pass
         head = (state.get("head") or "").lower()
         if any(h in head for h in dom.LOGIN_HINTS):
             raise UpstreamAuthError("muse.ai redirected to login; cookies are no longer valid")
